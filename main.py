@@ -1,28 +1,35 @@
+import os
+from dotenv import load_dotenv
 from src.core.factory import LLMFactory
 from src.schemas.invoice import Invoice
-from dotenv import load_dotenv
-import sys
 
 load_dotenv()
 
-def run_invoice_task():
+def run_day4_chaos_test():
     factory = LLMFactory(provider="groq")
-    raw_data = "Hey, I need to bill for 2 GPUs at 500 each. Wait, no—the price dropped to 450 today. Also, add a Monitor for 300. Actually, ignore the second GPU, just 1 GPU and 1 Monitor. Apply a 50 dollar loyalty discount at the end. Vendor is Tech-Hub (we used to use AI-Shop but not anymore)."
-    invoice = factory.get_structured(Invoice, raw_data)
-    print(f"\n[PARSED INVOICE]\nVendor: {invoice.vendor}\nTotal: ${invoice.total}")
-def run_day3_task():
-    factory = LLMFactory() # Defaults to Groq
-    raw_data = "Bill 1 laptop for 1200. Apply 10% tax."
     
-    # Receive the invoice AND the metrics
-    invoice, stats = factory.get_structured(Invoice, raw_data)
+    # CHAOS DATA: 0 is mathematically valid but logically invalid for an invoice
+    # 'TBD' is a string, which violates the 'float' type for price.
+    raw_data = """
+    I bought a specialized AI chip from Silicon-Valley. 
+    The quantity is 0 because it's a pre-order, and the price is 'TBD'. 
+    """
     
-    print(f"\n--- DAY 3 OBSERVABILITY REPORT ---")
-    print(f"Provider: {stats.provider}")
-    print(f"Tokens Used: {stats.total_tokens} (Prompt: {stats.prompt_tokens}, Completion: {stats.completion_tokens})")
-    print(f"Estimated Cost: ${stats.total_tokens * 0.0000001:.6f}") # Example math for Llama-3
-    print(f"----------------------------------")
-    print(f"Final Invoice Total: ${invoice.total}")
+    print("🚀 Day 4: Starting Self-Healing Test...")
+    
+    try:
+        invoice, stats = factory.get_structured(Invoice, raw_data)
+        
+        print(f"\n--- DAY 4 RESILIENCE REPORT ---")
+        print(f"Vendor: {invoice.vendor}")
+        # Observe how the LLM handled the '0' and 'TBD'
+        print(f"Parsed Quantity: {invoice.items[0].quantity}") 
+        print(f"Reasoning: {invoice.reasoning}")
+        print(f"Tokens Used: {stats.total_tokens}")
+        print(f"----------------------------------")
+        
+    except Exception as e:
+        print(f"❌ System Failed: {e}")
 
 if __name__ == "__main__":
-    run_day3_task()
+    run_day4_chaos_test()
