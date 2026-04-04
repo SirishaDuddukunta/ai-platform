@@ -7,29 +7,21 @@ load_dotenv()
 
 def run_day4_chaos_test():
     factory = LLMFactory(provider="groq")
+    raw_data = "I bought an AI chip from Silicon-Valley. Qty is 0, price is TBD."
     
-    # CHAOS DATA: 0 is mathematically valid but logically invalid for an invoice
-    # 'TBD' is a string, which violates the 'float' type for price.
-    raw_data = """
-    I bought a specialized AI chip from Silicon-Valley. 
-    The quantity is 0 because it's a pre-order, and the price is 'TBD'. 
-    """
-    
-    print("🚀 Day 4: Starting Self-Healing Test...")
-    
+    print("🚀 Running Resilience Test...")
     try:
+        # These variables ONLY exist inside this 'try' block
         invoice, stats = factory.get_structured(Invoice, raw_data)
         
-        print(f"\n--- DAY 4 RESILIENCE REPORT ---")
-        print(f"Vendor: {invoice.vendor}")
-        # Observe how the LLM handled the '0' and 'TBD'
-        print(f"Parsed Quantity: {invoice.items[0].quantity}") 
-        print(f"Reasoning: {invoice.reasoning}")
+        print(f"✅ Success! Vendor: {invoice.vendor}")
+        print(f"Total: ${invoice.total}")
+        print(f"Items: {invoice.items}")
+        print(f"Detailed Reasoning: {invoice.reasoning}")
         print(f"Tokens Used: {stats.total_tokens}")
-        print(f"----------------------------------")
         
     except Exception as e:
-        print(f"❌ System Failed: {e}")
+        print(f"❌ Failed: {e}")
 
 if __name__ == "__main__":
     run_day4_chaos_test()
