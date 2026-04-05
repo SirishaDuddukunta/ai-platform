@@ -25,3 +25,19 @@ def run_day4_chaos_test():
 
 if __name__ == "__main__":
     run_day4_chaos_test()
+
+from src.core.processor import DocumentProcessor
+
+def run_day6_chunking_test():
+    # 1. Simulate a long document
+    mega_bill = "VENDOR: Silicon-Valley. " + ("ITEM: AI Chip, PRICE: 1200. " * 50)
+    
+    # 2. Process chunks
+    processor = DocumentProcessor(chunk_size=300, chunk_overlap=50)
+    chunks = processor.split_text(mega_bill)
+    
+    print(f"📦 Document split into {len(chunks)} chunks.")
+    print(f"🔗 Sample Chunk 1: {chunks[0][:100]}...")
+
+if __name__ == "__main__":
+    run_day6_chunking_test()
