@@ -1,43 +1,44 @@
 import os
 from dotenv import load_dotenv
 from src.core.factory import LLMFactory
+from src.core.processor import DocumentProcessor
 from src.schemas.invoice import Invoice
 
 load_dotenv()
 
-def run_day4_chaos_test():
-    factory = LLMFactory(provider="groq")
-    raw_data = "I bought an AI chip from Silicon-Valley. Qty is 0, price is TBD."
+def run_week1_capstone():
+    factory = LLMFactory()
+    processor = DocumentProcessor(chunk_size=200, chunk_overlap=20)
     
-    print("🚀 Running Resilience Test...")
-    try:
-        # These variables ONLY exist inside this 'try' block
-        invoice, stats = factory.get_structured(Invoice, raw_data)
+    print("=== 🚀 AI PLATFORM: WEEK 1 CAPSTONE ===")
+    print("1. Structured Invoice Extraction (Resilience Test)")
+    print("2. Document Chunking (RAG Foundation)")
+    print("3. Streaming Chatbot (UX Test)")
+    
+    choice = input("\nSelect a mode (1-3): ")
+
+    if choice == "1":
+        raw_data = "Acme Corp sent a bill for 2 widgets at $50 each. Total is $100."
+        data, stats = factory.get_structured(Invoice, raw_data)
+        print(f"\n✅ Extracted: {data.vendor} | Total: ${data.total}")
+        print(f"📊 Usage: {stats.total_tokens} tokens")
+
+    elif choice == "2":
+        text = "This is a long document about DevOps and AI... " * 10
+        chunks = processor.split_text(text)
+        print(f"\n📦 Split document into {len(chunks)} chunks for the vector DB.")
+
+    elif choice == "3":
+        history = [{"role": "system", "content": "You are a Senior AI Engineer."}]
+        user_input = input("\nYou: ")
+        history.append({"role": "user", "content": user_input})
         
-        print(f"✅ Success! Vendor: {invoice.vendor}")
-        print(f"Total: ${invoice.total}")
-        print(f"Items: {invoice.items}")
-        print(f"Detailed Reasoning: {invoice.reasoning}")
-        print(f"Tokens Used: {stats.total_tokens}")
-        
-    except Exception as e:
-        print(f"❌ Failed: {e}")
+        print("AI: ", end="", flush=True)
+        stream = factory.stream_chat(history)
+        for chunk in stream:
+            content = chunk.choices[0].delta.content or ""
+            print(content, end="", flush=True)
+        print("\n")
 
 if __name__ == "__main__":
-    run_day4_chaos_test()
-
-from src.core.processor import DocumentProcessor
-
-def run_day6_chunking_test():
-    # 1. Simulate a long document
-    mega_bill = "VENDOR: Silicon-Valley. " + ("ITEM: AI Chip, PRICE: 1200. " * 50)
-    
-    # 2. Process chunks
-    processor = DocumentProcessor(chunk_size=300, chunk_overlap=50)
-    chunks = processor.split_text(mega_bill)
-    
-    print(f"📦 Document split into {len(chunks)} chunks.")
-    print(f"🔗 Sample Chunk 1: {chunks[0][:100]}...")
-
-if __name__ == "__main__":
-    run_day6_chunking_test()
+    run_week1_capstone()
