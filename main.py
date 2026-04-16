@@ -3,58 +3,62 @@ import json
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
-# Import your core platform components
+# Core Platform Imports
 from src.core.factory import LLMFactory
 from src.core.processor import DocumentProcessor
-from src.core.tools import get_server_status, restart_server, TOOLS_SCHEMA
+from src.core.tools import get_server_status, restart_server, query_database, TOOLS_SCHEMA
 from src.schemas.invoice import Invoice
 
 # 1. INITIALIZATION
 load_dotenv()
-app = FastAPI(title="Sirisha's AI Platform") # <--- THIS FIXES THE ERROR
+app = FastAPI(title="Sirisha's AI Platform")
 factory = LLMFactory()
 
 # ==========================================
-# DAY 4: RESILIENCE & EXTRACTION (API VERSION)
+# DAY 4: RESILIENCE & EXTRACTION (API)
 # ==========================================
-# DEFINITION: Extracts structured data from messy text.
+# What: Extracts structured JSON from messy text using Pydantic.
 @app.post("/extract/invoice")
 async def api_extract_invoice(text: str):
-    try:
-        # Re-using the logic from your Day 4 chaos test
-        invoice, stats = factory.get_structured(Invoice, text)
-        return {"data": invoice, "metrics": stats}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    invoice, stats = factory.get_structured(Invoice, text)
+    return {"data": invoice, "metrics": stats}
+
 
 # ==========================================
-# DAY 8: TOOL CALLING (API VERSION)
+# DAY 8 & 9: CONSOLIDATED TOOL CHAT
 # ==========================================
-# DEFINITION: An endpoint that lets the AI decide to use DevOps tools.
+# What: Multi-step tool loop with error handling.
+# Why: Handles Day 8 (Execution) and Day 9 (Error Feedback) in one flow.
 @app.post("/chat/tools")
 async def api_tool_chat(user_query: str):
     messages = [
-        {"role": "system", "content": "You are a DevOps Assistant."},
+        {"role": "system", "content": "You are a DevOps Assistant. If a tool fails, explain the error."},
         {"role": "user", "content": user_query}
     ]
     
-    # Step 1: LLM decides to use a tool
+    # [Day 8] Step 1: Decision
     response_message = factory.chat_with_tools(messages, TOOLS_SCHEMA)
     
     if response_message.tool_calls:
         messages.append(response_message)
         
-        # Step 2: Execute the requested tools
         for tool_call in response_message.tool_calls:
             f_name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
             
-            if f_name == "get_server_status":
-                result = get_server_status(args['hostname'])
-            elif f_name == "restart_server":
-                result = restart_server(args['hostname'])
-            else:
-                result = "Unknown tool."
+            # [Day 9] Step 2: Resilient Execution
+            try:
+                if f_name == "get_server_status":
+                    result = get_server_status(args['hostname'])
+                elif f_name == "restart_server":
+                    result = restart_server(args['hostname'])
+                elif f_name == "query_database":
+                    result = query_database(args['query_string'])
+                else:
+                    result = f"Error: Tool {f_name} not found."
+            except Exception as e:
+                # [Day 9] Step 3: Feedback Loop
+                result = f"TOOL_EXECUTION_ERROR: {str(e)}"
 
             messages.append({
                 "role": "tool",
@@ -63,22 +67,35 @@ async def api_tool_chat(user_query: str):
                 "content": result
             })
         
-        # Step 3: Final summary from LLM
+        # Final Summary
         final_answer = factory.chat_with_tools(messages, TOOLS_SCHEMA)
-        return {"response": final_answer.content, "tools_used": [t.function.name for t in response_message.tool_calls]}
+        return {"response": final_answer.content}
     
     return {"response": response_message.content}
 
-# ==========================================
-# LEGACY CLI LOGIC (KEEPING OLD CODE)
-# ==========================================
-# This allows you to still run tests via 'python main.py' if you want.
-def run_legacy_tests():
-    print("Running Day 4/6/8 Legacy CLI Tests...")
-    # [Your previous test code logic remains accessible here]
-    pass
 
+# ==========================================
+# UNWANTED / LEGACY CODE (COMMENTED OUT)
+# ==========================================
+"""
+# DAY 4: CLI VERSION
+def run_day4_chaos_test():
+    factory = LLMFactory(provider="groq")
+    raw_data = "I bought an AI chip from Silicon-Valley. Qty is 0, price is TBD."
+    invoice, stats = factory.get_structured(Invoice, raw_data)
+    print(f"✅ Success! Vendor: {invoice.vendor}")
+
+# DAY 6: CLI CHUNKING TEST
+def run_day6_chunking_test():
+    mega_bill = "VENDOR: Silicon-Valley. " + ("ITEM: AI Chip, PRICE: 1200. " * 50)
+    processor = DocumentProcessor(chunk_size=300, chunk_overlap=50)
+    chunks = processor.split_text(mega_bill)
+    print(f"📦 Document split into {len(chunks)} chunks.")
+
+# DAY 7: CONSOLIDATED CLI
 if __name__ == "__main__":
+    # run_day4_chaos_test()
+    # run_day6_chunking_test()
     import uvicorn
-    # This starts the web server automatically when you run the file
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+"""

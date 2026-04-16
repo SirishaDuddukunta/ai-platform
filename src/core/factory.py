@@ -1,5 +1,6 @@
 import instructor
 from groq import Groq
+from groq import BadRequestError
 from src.core.metrics import TokenMetrics
 
 class LLMFactory:
@@ -32,10 +33,37 @@ class LLMFactory:
         """
         Sends tools to the LLM and returns the raw response to check for tool_calls.
         """
-        response = self.raw_client.chat.completions.create(
-            model=self.model_name,
-            messages=messages,
-            tools=tools, # This is the Day 8 addition
-            tool_choice="auto" 
-        )
+        try:
+            response = self.raw_client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                tools=tools, # This is the Day 8 addition
+                tool_choice="auto",
+                temperature=0
+            )
+        except BadRequestError as exc:
+            # Some models occasionally emit malformed function-call text.
+            # Retry once with an explicit instruction for strict tool-calling format.
+            if "tool_use_failed" not in str(exc):
+                raise
+
+            retry_messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "When you need a tool, respond ONLY with a valid tool call. "
+                        "Never use XML-style tags like <function=...>. "
+                        "Arguments must be valid JSON that matches the tool schema."
+                    ),
+                },
+                *messages,
+            ]
+
+            response = self.raw_client.chat.completions.create(
+                model=self.model_name,
+                messages=retry_messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=0
+            )
         return response.choices[0].message
