@@ -1,5 +1,23 @@
 import json
 import random
+import time
+from datetime import datetime
+
+# ==========================================
+# DAY 10: OBSERVABILITY WRAPPER
+# ==========================================
+# DEFINITION: A simple logger to track tool performance.
+# Why: To monitor model drift and latency in production-grade systems.
+def log_tool_usage(f_name, status, duration, error=None):
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "tool": f_name,
+        "status": status,
+        "duration_ms": round(duration * 1000, 2),
+        "error": error
+    }
+    # In production, this data would stream to Prometheus or Grafana
+    print(f"📊 [OBSERVABILITY] {json.dumps(log_entry)}")
 
 # ==========================================
 # DAY 8: STABLE DEVOPS TOOLS
@@ -9,17 +27,20 @@ import random
 
 def get_server_status(hostname: str):
     """Checks the current health and latency of a specific production server."""
+    start_time = time.time()
     statuses = {
         "prod-db-01": "🟢 Online - Latency 12ms",
         "web-lb-02": "🔴 Offline - Connection Timeout",
         "ci-runner-linux": "🟡 Maintenance Mode"
     }
-    return statuses.get(hostname, "❓ Server unknown or not in inventory.")
+    result = statuses.get(hostname, "❓ Server unknown or not in inventory.")
+    # Day 10 Observability Integration
+    log_tool_usage("get_server_status", "success", time.time() - start_time)
+    return result
 
 def restart_server(hostname: str):
     """Simulates a server restart command."""
     return f"🚀 Restart command sent to {hostname}. Estimated downtime: 2 mins."
-
 
 # ==========================================
 # DAY 9: ERROR HANDLING & FLAKY TOOLS
@@ -29,15 +50,23 @@ def restart_server(hostname: str):
 
 def query_database(query_string: str):
     """Queries the internal database for specific records. High chance of timeout."""
-    # Simulate a 50% failure rate for testing
-    if random.random() < 0.5:
-        raise Exception("Timeout: Database is under heavy load. Try again in 5 seconds.")
-    
-    return f"Success: Found 3 records matching '{query_string}'."
-
+    start_time = time.time()
+    try:
+        # Simulate a 50% failure rate for testing Day 9 Resilience
+        if random.random() < 0.5:
+            raise Exception("Timeout: Database is under heavy load. Try again in 5 seconds.")
+        
+        result = f"Success: Found 3 records matching '{query_string}'."
+        # Day 10 Observability Integration
+        log_tool_usage("query_database", "success", time.time() - start_time)
+        return result
+    except Exception as e:
+        # Day 10 Observability Integration
+        log_tool_usage("query_database", "failed", time.time() - start_time, error=str(e))
+        raise e
 
 # ==========================================
-# CUMULATIVE TOOL SCHEMA (DAY 8 & 9)
+# CUMULATIVE TOOL SCHEMA (DAY 8, 9, 10)
 # ==========================================
 TOOLS_SCHEMA = [
     {

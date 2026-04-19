@@ -1,6 +1,7 @@
 import os
 import json
-from fastapi import FastAPI, HTTPException
+import time
+from fastapi import FastAPI, HTTPException, Request
 from dotenv import load_dotenv
 
 # Core Platform Imports
@@ -15,20 +16,35 @@ app = FastAPI(title="Sirisha's AI Platform")
 factory = LLMFactory()
 
 # ==========================================
+# DAY 10: MIDDLEWARE FOR LATENCY TRACKING
+# ==========================================
+# What: Middleware that intercepts every request to measure speed.
+# Why: To provide real-time performance metrics (X-Process-Time) in headers.
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+# ==========================================
 # DAY 4: RESILIENCE & EXTRACTION (API)
 # ==========================================
-# What: Extracts structured JSON from messy text using Pydantic.
+# What: Extracts structured JSON from messy text using Pydantic. [cite: 17]
 @app.post("/extract/invoice")
 async def api_extract_invoice(text: str):
-    invoice, stats = factory.get_structured(Invoice, text)
-    return {"data": invoice, "metrics": stats}
-
+    try:
+        invoice, stats = factory.get_structured(Invoice, text)
+        return {"data": invoice, "metrics": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
-# DAY 8 & 9: CONSOLIDATED TOOL CHAT
+# DAY 8, 9, 10: CONSOLIDATED TOOL CHAT
 # ==========================================
-# What: Multi-step tool loop with error handling.
-# Why: Handles Day 8 (Execution) and Day 9 (Error Feedback) in one flow.
+# What: Multi-step tool loop with error handling and observability.
+# Why: This allows the AI to decide, act, fail, and self-correct.
 @app.post("/chat/tools")
 async def api_tool_chat(user_query: str):
     messages = [
@@ -36,6 +52,7 @@ async def api_tool_chat(user_query: str):
         {"role": "user", "content": user_query}
     ]
     
+    start_total = time.time()
     # [Day 8] Step 1: Decision
     response_message = factory.chat_with_tools(messages, TOOLS_SCHEMA)
     
@@ -67,15 +84,20 @@ async def api_tool_chat(user_query: str):
                 "content": result
             })
         
-        # Final Summary
+        # [Day 8] Final Summary
         final_answer = factory.chat_with_tools(messages, TOOLS_SCHEMA)
-        return {"response": final_answer.content}
+        
+        # [Day 10] Metadata Return
+        return {
+            "response": final_answer.content,
+            "latency_ms": round((time.time() - start_total) * 1000, 2),
+            "version": "1.0.1-day10"
+        }
     
     return {"response": response_message.content}
 
-
 # ==========================================
-# UNWANTED / LEGACY CODE (COMMENTED OUT)
+# UNWANTED / LEGACY CODE (KEEPING FOR HISTORY)
 # ==========================================
 """
 # DAY 4: CLI VERSION
@@ -92,7 +114,7 @@ def run_day6_chunking_test():
     chunks = processor.split_text(mega_bill)
     print(f"📦 Document split into {len(chunks)} chunks.")
 
-# DAY 7: CONSOLIDATED CLI
+# DAY 7: CONSOLIDATED CLI BOOTSTRAP
 if __name__ == "__main__":
     # run_day4_chaos_test()
     # run_day6_chunking_test()
