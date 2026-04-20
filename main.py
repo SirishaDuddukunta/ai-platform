@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 # Core Platform Imports
 from src.core.factory import LLMFactory
 from src.core.processor import DocumentProcessor
-from src.core.tools import get_server_status, restart_server, query_database, TOOLS_SCHEMA
+from src.core.tools import (
+    get_server_status, restart_server, query_database, 
+    TOOLS_SCHEMA, security_scanner
+)
 from src.schemas.invoice import Invoice
 
 # 1. INITIALIZATION
@@ -31,7 +34,7 @@ async def add_process_time_header(request: Request, call_next):
 # ==========================================
 # DAY 4: RESILIENCE & EXTRACTION (API)
 # ==========================================
-# What: Extracts structured JSON from messy text using Pydantic. [cite: 17]
+# What: Extracts structured JSON from messy text using Pydantic.
 @app.post("/extract/invoice")
 async def api_extract_invoice(text: str):
     try:
@@ -41,19 +44,26 @@ async def api_extract_invoice(text: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
-# DAY 8, 9, 10: CONSOLIDATED TOOL CHAT
+# DAY 8, 9, 10, 11: CONSOLIDATED TOOL CHAT
 # ==========================================
 # What: Multi-step tool loop with error handling and observability.
 # Why: This allows the AI to decide, act, fail, and self-correct.
 @app.post("/chat/tools")
 async def api_tool_chat(user_query: str):
+    # --- DAY 11: THE SECURITY GATE ---
+    # What: Intercepting the query BEFORE the LLM sees it.
+    is_safe, message = security_scanner(user_query)
+    if not is_safe:
+        return {"response": message, "security_status": "REJECTED"}
+
     messages = [
         {"role": "system", "content": "You are a DevOps Assistant. If a tool fails, explain the error."},
         {"role": "user", "content": user_query}
     ]
     
     start_total = time.time()
-    # [Day 8] Step 1: Decision
+    
+    # [Day 8] Step 1: Decision Phase
     response_message = factory.chat_with_tools(messages, TOOLS_SCHEMA)
     
     if response_message.tool_calls:
@@ -74,7 +84,7 @@ async def api_tool_chat(user_query: str):
                 else:
                     result = f"Error: Tool {f_name} not found."
             except Exception as e:
-                # [Day 9] Step 3: Feedback Loop
+                # [Day 9] Step 3: Self-Correction Loop
                 result = f"TOOL_EXECUTION_ERROR: {str(e)}"
 
             messages.append({
@@ -84,17 +94,18 @@ async def api_tool_chat(user_query: str):
                 "content": result
             })
         
-        # [Day 8] Final Summary
+        # [Day 8] Final Summary Phase
         final_answer = factory.chat_with_tools(messages, TOOLS_SCHEMA)
         
         # [Day 10] Metadata Return
         return {
             "response": final_answer.content,
             "latency_ms": round((time.time() - start_total) * 1000, 2),
-            "version": "1.0.1-day10"
+            "security_status": "CLEAN",
+            "version": "1.1.0-day11"
         }
     
-    return {"response": response_message.content}
+    return {"response": response_message.content, "security_status": "CLEAN"}
 
 # ==========================================
 # UNWANTED / LEGACY CODE (KEEPING FOR HISTORY)
@@ -116,8 +127,6 @@ def run_day6_chunking_test():
 
 # DAY 7: CONSOLIDATED CLI BOOTSTRAP
 if __name__ == "__main__":
-    # run_day4_chaos_test()
-    # run_day6_chunking_test()
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
 """
