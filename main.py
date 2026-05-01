@@ -17,7 +17,6 @@ from src.schemas.invoice import Invoice
 load_dotenv()
 app = FastAPI(title="Sirisha's AI Platform")
 factory = LLMFactory()
-
 # ==========================================
 # DAY 10: MIDDLEWARE FOR LATENCY TRACKING
 # ==========================================
@@ -130,3 +129,52 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
 """
+
+# In a real app, this would be in a DB (like Redis or PostgreSQL)
+# For Day 12, we will use a simple in-memory store
+session_history = []
+
+@app.post("/chat")
+async def chat_with_memory(user_input: str):
+    # 1. Add user message to persistent history
+    session_history.append({"role": "user", "content": user_input})
+
+    # 2. Ask the model using the full running context
+    response_message = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
+    assistant_content = response_message.content or ""
+
+    # 3. If tools are requested, execute them and ask for final summary
+    if response_message.tool_calls:
+        session_history.append({"role": "assistant", "content": assistant_content})
+
+        for tool_call in response_message.tool_calls:
+            f_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+
+            try:
+                if f_name == "get_server_status":
+                    result = get_server_status(args["hostname"])
+                elif f_name == "restart_server":
+                    result = restart_server(args["hostname"])
+                elif f_name == "query_database":
+                    result = query_database(args["query_string"])
+                else:
+                    result = f"Error: Tool {f_name} not found."
+            except Exception as e:
+                result = f"TOOL_EXECUTION_ERROR: {str(e)}"
+
+            session_history.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": f_name,
+                "content": result
+            })
+
+        final_answer = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
+        final_content = final_answer.content or ""
+        session_history.append({"role": "assistant", "content": final_content})
+        return {"response": final_content}
+
+    # 4. Normal direct response path
+    session_history.append({"role": "assistant", "content": assistant_content})
+    return {"response": assistant_content}
