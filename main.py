@@ -132,30 +132,43 @@ if __name__ == "__main__":
 
 # In a real app, this would be in a DB (like Redis or PostgreSQL)
 # For Day 12, we will use a simple in-memory store
-session_history = []
+#  DAY 13: THE AI ENGINEER PERSONA ---
+SYSTEM_PROMPT = {
+    "role": "system",
+    "content": (
+        "You are 'AI-Eng-Core', a Senior AI Engineer specializing in Agentic Workflows. "
+        "Your mission is to ensure the AI platform is efficient, resilient, and accurate. "
+        "PRINCIPLES: "
+        "1. Latency is the enemy. Be concise to save tokens and time. "
+        "2. If an LLM call fails, suggest optimizations for the prompt or tool schema. "
+        "3. No corporate fluff. Provide technical solutions and reasoning traces."
+    )
+}
+
+# [Line 144] Initialize memory with the Senior AI Engineer persona
+session_history = [SYSTEM_PROMPT]
 
 @app.post("/chat")
 async def chat_with_memory(user_input: str):
-    # 1. Add user message to persistent history
+    # 1. Append user input to history
     session_history.append({"role": "user", "content": user_input})
 
-    # 2. Ask the model using the full running context
+    # 2. First call to LLM
     response_message = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
-    assistant_content = response_message.content or ""
+    
+    # CRITICAL: Append the full object to history (saves tool_calls metadata)
+    session_history.append(response_message)
 
-    # 3. If tools are requested, execute them and ask for final summary
+    # 3. Handle Tool Execution
     if response_message.tool_calls:
-        session_history.append({"role": "assistant", "content": assistant_content})
-
         for tool_call in response_message.tool_calls:
             f_name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
 
             try:
+                # Logic for your specific tools
                 if f_name == "get_server_status":
                     result = get_server_status(args["hostname"])
-                elif f_name == "restart_server":
-                    result = restart_server(args["hostname"])
                 elif f_name == "query_database":
                     result = query_database(args["query_string"])
                 else:
@@ -163,6 +176,7 @@ async def chat_with_memory(user_input: str):
             except Exception as e:
                 result = f"TOOL_EXECUTION_ERROR: {str(e)}"
 
+            # 4. Append tool result to history
             session_history.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
@@ -170,11 +184,16 @@ async def chat_with_memory(user_input: str):
                 "content": result
             })
 
-        final_answer = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
-        final_content = final_answer.content or ""
+        # 5. Final Turn: Ask the AI to summarize the results
+        # This turn is what prevents the 'null' response!
+        final_turn = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
+        
+        # Ensure we have a string even if the model is being shy
+        final_content = final_turn.content or "Task completed. No further technical notes."
+        
         session_history.append({"role": "assistant", "content": final_content})
         return {"response": final_content}
 
-    # 4. Normal direct response path
-    session_history.append({"role": "assistant", "content": assistant_content})
-    return {"response": assistant_content}
+    # 6. Fallback for direct responses
+    direct_content = response_message.content or "I processed your request but have no text output."
+    return {"response": direct_content}
