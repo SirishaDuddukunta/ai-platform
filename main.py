@@ -129,6 +129,21 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
 """
+def trim_history(history: list, max_messages: int = 10):
+    """
+    Keeps the System Prompt (index 0) and the last N-1 messages.
+    Ensures the 'AI-Eng-Core' persona is never deleted.
+    """
+    if len(history) <= max_messages:
+        return history
+    
+    # Preserve the System Prompt at [0]
+    # Take the most recent messages to fill the rest of the limit
+    # (max_messages - 1) because the system prompt takes 1 slot
+    trimmed = [history[0]] + history[-(max_messages - 1):]
+    
+    print(f"✂️  Trimming history: Reduced from {len(history)} to {len(trimmed)} messages.")
+    return trimmed
 
 # In a real app, this would be in a DB (like Redis or PostgreSQL)
 # For Day 12, we will use a simple in-memory store
@@ -150,6 +165,7 @@ session_history = [SYSTEM_PROMPT]
 
 @app.post("/chat")
 async def chat_with_memory(user_input: str):
+    global session_history
     # 1. Append user input to history
     session_history.append({"role": "user", "content": user_input})
 
@@ -192,8 +208,7 @@ async def chat_with_memory(user_input: str):
         final_content = final_turn.content or "Task completed. No further technical notes."
         
         session_history.append({"role": "assistant", "content": final_content})
+        # --- DAY 14: THE SLIDING WINDOW ---
+        session_history = trim_history(session_history, max_messages=10)
+        # ----------------------------------
         return {"response": final_content}
-
-    # 6. Fallback for direct responses
-    direct_content = response_message.content or "I processed your request but have no text output."
-    return {"response": direct_content}
