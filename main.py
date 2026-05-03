@@ -162,27 +162,28 @@ SYSTEM_PROMPT = {
 
 # [Line 144] Initialize memory with the Senior AI Engineer persona
 session_history = [SYSTEM_PROMPT]
-
 @app.post("/chat")
 async def chat_with_memory(user_input: str):
-    global session_history
-    # 1. Append user input to history
+    # 1. Access the global memory
+    global session_history 
+    
+    # 2. Add user input
     session_history.append({"role": "user", "content": user_input})
 
-    # 2. First call to LLM
+    # 3. Get initial AI Response
     response_message = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
     
-    # CRITICAL: Append the full object to history (saves tool_calls metadata)
+    # 4. Save the response object (Crucial for tool_calls history)
     session_history.append(response_message)
 
-    # 3. Handle Tool Execution
+    # --- CASE A: AI WANTS TO USE TOOLS ---
     if response_message.tool_calls:
         for tool_call in response_message.tool_calls:
             f_name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
-
+            
+            # (Tool execution logic - keep your existing if/else here)
             try:
-                # Logic for your specific tools
                 if f_name == "get_server_status":
                     result = get_server_status(args["hostname"])
                 elif f_name == "query_database":
@@ -190,9 +191,8 @@ async def chat_with_memory(user_input: str):
                 else:
                     result = f"Error: Tool {f_name} not found."
             except Exception as e:
-                result = f"TOOL_EXECUTION_ERROR: {str(e)}"
+                result = f"TOOL_ERROR: {str(e)}"
 
-            # 4. Append tool result to history
             session_history.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
@@ -200,15 +200,43 @@ async def chat_with_memory(user_input: str):
                 "content": result
             })
 
-        # 5. Final Turn: Ask the AI to summarize the results
-        # This turn is what prevents the 'null' response!
+        # Final reasoning turn
         final_turn = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
+        final_answer = final_turn.content or "Analysis complete."
+        session_history.append({"role": "assistant", "content": final_answer})
         
-        # Ensure we have a string even if the model is being shy
-        final_content = final_turn.content or "Task completed. No further technical notes."
-        
-        session_history.append({"role": "assistant", "content": final_content})
-        # --- DAY 14: THE SLIDING WINDOW ---
+        # TRIM & RETURN
         session_history = trim_history(session_history, max_messages=10)
-        # ----------------------------------
-        return {"response": final_content}
+        return {"response": final_answer}
+
+    # --- CASE B: AI JUST WANTS TO TALK (The 'null' fix) ---
+    # This part was likely missing or not returning correctly!
+    direct_answer = response_message.content or "I am AI-Eng-Core. How can I assist with your architecture?"
+    
+    # Final cleanup before leaving the function
+    session_history = trim_history(session_history, max_messages=10)
+    
+    return {"response": direct_answer}
+
+@app.post("/engineer/embed")
+async def api_generate_embedding(text: str):
+    """
+    Test endpoint to see how the AI 'digitizes' technical concepts.
+    """
+    vector = factory.get_embedding(text)
+    return {
+        "text": text,
+        "vector_dimensions": len(vector),
+        "sample": vector[:5], # Show the first 5 numbers
+        "status": "SEMANTIC_READY"
+    }
+@app.post("/engineer/index")
+async def api_index_document(text: str, doc_id: str):
+    """
+    Store technical knowledge in the long-term vector brain.
+    """
+    try:
+        status = factory.add_to_library(text, doc_id, {"source": "manual_upload"})
+        return {"status": status, "message": "Knowledge acquired."}
+    except Exception as e:
+        return {"error": str(e)}
