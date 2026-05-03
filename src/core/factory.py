@@ -74,8 +74,8 @@ class LLMFactory:
                 temperature=0
             )
         except BadRequestError as exc:
-            # Some models occasionally emit malformed function-call text.
-            # Retry once with an explicit instruction for strict tool-calling format.
+            # Some models occasionally emit malformed function-call text
+            # Retry once with an explicit instruction for strict tool-calling format
             if "tool_use_failed" not in str(exc):
                 raise
 
