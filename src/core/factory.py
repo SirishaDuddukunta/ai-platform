@@ -1,3 +1,4 @@
+# LLM & Embedding initialization
 import instructor
 import chromadb 
 import time

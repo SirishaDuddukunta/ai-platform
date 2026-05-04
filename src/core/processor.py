@@ -1,22 +1,20 @@
+#  Chunking & Logic
 from typing import List
 
-class DocumentProcessor:
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-    def split_text(self, text: str) -> List[str]:
+class DocumentProcessor:
+    def __init__(self, chunk_size=500, chunk_overlap=50):
+        # Setting the industry standard parameters for technical docs
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=["\n\n", "\n", " ", ""]
+        )
+
+    def process_text(self, text: str):
         """
-        A simple recursive-style splitter for Day 6.
+        Splits raw text into chunks ready for Day 18's Vector DB.
         """
-        chunks = []
-        start = 0
-        
-        while start < len(text):
-            end = start + self.chunk_size
-            chunk = text[start:end]
-            chunks.append(chunk)
-            # Move the start pointer forward, but subtract overlap
-            start += (self.chunk_size - self.chunk_overlap)
-            
+        chunks = self.splitter.split_text(text)
         return chunks
