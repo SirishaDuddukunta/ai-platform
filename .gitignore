@@ -1,4 +1,4 @@
 .env 
 desktop.ini
 uv.lock
-qdrant_storage/
+qdrant_storage
