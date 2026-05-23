@@ -16,6 +16,7 @@ dependencies = [
     "langchain-community>=0.4.1",
     "langchain-text-splitters>=1.0.0",
     "loguru>=0.7.3",
+    "mcp>=1.27.1",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
