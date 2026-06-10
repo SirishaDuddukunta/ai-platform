@@ -241,3 +241,18 @@ async def api_index_document(text: str, doc_id: str):
         return {"status": status, "message": "Knowledge acquired."}
     except Exception as e:
         return {"error": str(e)}
+# main.py
+from src.core.orchestrator import run_agent_task
+
+@app.post("/engineer/ask")
+async def ask_agent(query: str):
+    """
+    Day 24 Integration Point: 
+    Sends a query from the API to the Orchestrator.
+    """
+    try:
+        # We call the function we just refactored
+        result = run_agent_task(query)
+        return {"status": "success", "answer": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
