@@ -2,7 +2,8 @@
 import os
 import json
 import time
-from fastapi import FastAPI, HTTPException, Request
+import uuid
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from dotenv import load_dotenv
 
 # Core Platform Imports
@@ -244,15 +245,49 @@ async def api_index_document(text: str, doc_id: str):
 # main.py
 from src.core.orchestrator import run_agent_task
 
-@app.post("/engineer/ask")
-async def ask_agent(query: str):
-    """
+""" @app.post("/engineer/ask")
+async def ask_agent(query: str):    
     Day 24 Integration Point: 
     Sends a query from the API to the Orchestrator.
-    """
     try:
         # We call the function we just refactored
         result = run_agent_task(query)
         return {"status": "success", "answer": result}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": str(e)} """
+
+# --- MOCK STORAGE (Replace with Redis in production) ---
+task_store = {}
+
+@app.post("/engineer/ask")
+async def ask_agent_async(query: str, background_tasks: BackgroundTasks):
+    """
+    Day 25: Returns a task_id immediately and runs the agent in the background.
+    """
+    task_id = str(uuid.uuid4())
+    task_store[task_id] = {"status": "processing", "result": None}
+    
+    # Define the background worker
+    def process_agent_task(tid, q):
+        try:
+            # Import and call your orchestrator function
+            from src.core.orchestrator import run_agent_task
+            result = run_agent_task(q)
+            task_store[tid] = {"status": "completed", "result": result}
+        except Exception as e:
+            task_store[tid] = {"status": "failed", "error": str(e)}
+
+    # Add the worker to background tasks
+    background_tasks.add_task(process_agent_task, task_id, query)
+    
+    return {"status": "accepted", "task_id": task_id}
+
+@app.get("/engineer/status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Check the status of a long-running research task.
+    """
+    task = task_store.get(task_id)
+    if not task:
+        return {"status": "not_found"}
+    return task
