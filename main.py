@@ -1,10 +1,9 @@
 # FastAPI Endpoints
-import os
-import json
-import time
-import uuid
+import os, json, time, uuid
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from dotenv import load_dotenv
+from src.core.memory import load_history, save_history
+from src.core.memory import SYSTEM_PROMPT
 
 # Core Platform Imports
 from src.core.factory import LLMFactory
@@ -291,3 +290,22 @@ async def get_task_status(task_id: str):
     if not task:
         return {"status": "not_found"}
     return task
+
+@app.post("/chat")
+async def chat_with_memory(user_input: str):
+    # 1. Load history from persistent storage
+    session_history = load_history()
+    
+    # If history is empty, initialize with System Prompt
+    if not session_history:
+        session_history = [SYSTEM_PROMPT]
+        
+    # 2. Append user input
+    session_history.append({"role": "user", "content": user_input})
+
+    # ... (Your existing Tool logic here) ...
+
+    # 3. Save after every turn
+    save_history(session_history)
+    
+    return {"response": final_answer}
