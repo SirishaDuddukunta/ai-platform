@@ -3,7 +3,6 @@ import os, json, time, uuid
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from dotenv import load_dotenv
 from src.core.memory import load_history, save_history
-from src.core.memory import SYSTEM_PROMPT
 
 # Core Platform Imports
 from src.core.factory import LLMFactory
@@ -161,64 +160,66 @@ SYSTEM_PROMPT = {
     )
 }
 
-# [Line 144] Initialize memory with the Senior AI Engineer persona
-session_history = [SYSTEM_PROMPT]
 @app.post("/chat")
-async def chat_with_memory(user_input: str):
-    # 1. Access the global memory
-    global session_history 
+async def chat_with_memory(user_input: str, user_id: str = "default_user"):
+    # 1. Load history
+    session_history = load_history(user_id)
+    if not session_history:
+        session_history = [{"role": "system", "content": f"You are AI-Eng-Core. The user is {user_id}."}]
     
-    # 2. Add user input
+    # 2. Append user input
     session_history.append({"role": "user", "content": user_input})
-
-    # 3. Get initial AI Response
-    response_message = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
     
-    # 4. Save the response object (Crucial for tool_calls history)
-    session_history.append(response_message)
-
-    # --- CASE A: AI WANTS TO USE TOOLS ---
-    if response_message.tool_calls:
-        for tool_call in response_message.tool_calls:
+    # 3. Get LLM Response
+    response = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
+    
+    # Extract message properly (Fixes AttributeError)
+    message = response.choices[0].message
+    
+    # 4. Handle Tool Calls
+    if message.tool_calls:
+        # Append the assistant's tool-calling message to history
+        # IMPORTANT: Use .model_dump() to make it JSON serializable
+        session_history.append(message.model_dump())
+        
+        for tool_call in message.tool_calls:
             f_name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
             
-            # (Tool execution logic - keep your existing if/else here)
             try:
+                # Execution logic
                 if f_name == "get_server_status":
-                    result = get_server_status(args["hostname"])
+                    result = get_server_status(args.get("hostname"))
                 elif f_name == "query_database":
-                    result = query_database(args["query_string"])
+                    result = query_database(args.get("query_string"))
                 else:
                     result = f"Error: Tool {f_name} not found."
             except Exception as e:
                 result = f"TOOL_ERROR: {str(e)}"
 
+            # Append tool result
             session_history.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "name": f_name,
-                "content": result
+                "content": str(result)
             })
 
-        # Final reasoning turn
+        # Final turn to get the summary
         final_turn = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
-        final_answer = final_turn.content or "Analysis complete."
+        final_answer = final_turn.choices[0].message.content or "Analysis complete."
         session_history.append({"role": "assistant", "content": final_answer})
-        
-        # TRIM & RETURN
-        session_history = trim_history(session_history, max_messages=10)
-        return {"response": final_answer}
-
-    # --- CASE B: AI JUST WANTS TO TALK (The 'null' fix) ---
-    # This part was likely missing or not returning correctly!
-    direct_answer = response_message.content or "I am AI-Eng-Core. How can I assist with your architecture?"
     
-    # Final cleanup before leaving the function
-    session_history = trim_history(session_history, max_messages=10)
-    
-    return {"response": direct_answer}
+    else:
+        # Standard chat case
+        final_answer = message.content or "How can I help?"
+        session_history.append({"role": "assistant", "content": final_answer})
 
+    # 5. Save History (Fixes TypeError)
+    # We ensure session_history is a list of dictionaries, not raw objects
+    save_history(user_id, session_history)
+    
+    return {"response": final_answer}
 @app.post("/engineer/embed")
 async def api_generate_embedding(text: str):
     """
@@ -292,20 +293,21 @@ async def get_task_status(task_id: str):
     return task
 
 @app.post("/chat")
-async def chat_with_memory(user_input: str):
-    # 1. Load history from persistent storage
-    session_history = load_history()
+async def chat_with_memory(user_input: str, user_id: str = "default_user"):
+    # 1. Load specific history for this user
+    session_history = load_history(user_id)
     
-    # If history is empty, initialize with System Prompt
+    # 2. Check if this is a new session
     if not session_history:
-        session_history = [SYSTEM_PROMPT]
+        session_history = [
+            {"role": "system", "content": f"You are AI-Eng-Core. The user is {user_id}."}
+        ]
         
-    # 2. Append user input
     session_history.append({"role": "user", "content": user_input})
-
+    
     # ... (Your existing Tool logic here) ...
-
-    # 3. Save after every turn
-    save_history(session_history)
+    
+    # 3. Save to this user's specific file
+    save_history(user_id, session_history)
     
     return {"response": final_answer}

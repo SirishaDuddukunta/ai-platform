@@ -1,21 +1,11 @@
-# LLM & Embedding initialization
 import instructor
 import chromadb 
 import time
 from groq import Groq
-from groq import BadRequestError
 from src.core.metrics import TokenMetrics
 from sentence_transformers import SentenceTransformer
-from langchain_community.vectorstores import Chroma
-from langchain_core.documents import Document
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.runnables import RunnableLambda
-from langchain_core.runnables import RunnablePassthrough
 
-__all__ = ["LLMFactory", "SentenceTransformer"]
-
+__all__ = ["LLMFactory", "SentenceTransformer", "TOOLS_SCHEMA"]
 
 class LLMFactory:
     def __init__(self, provider="groq"):
@@ -29,12 +19,7 @@ class LLMFactory:
         self.model_name = "llama-3.3-70b-versatile"
 
     def add_to_library(self, text: str, doc_id: str, metadata: dict = None):
-        """
-        Takes technical text, converts it to a vector, and stores it.
-        """
-        # We use the embedding method we fixed earlier!
         vector = self.get_embedding(text)
-        
         self.collection.add(
             ids=[doc_id],
             embeddings=[vector],
@@ -43,11 +28,7 @@ class LLMFactory:
         )
         return f"Successfully indexed doc: {doc_id}"
 
-    # ------------------------------------------
-    # DAY 1-7: STRUCTURED & STREAMING LOGIC (KEEPING FOR HISTORY)
-    # ------------------------------------------
     def get_structured(self, response_model, user_prompt):
-        # [Old Day 7 Logic remains active here...]
         response, completion = self.client.chat.completions.create_with_completion(
             model=self.model_name,
             response_model=response_model,
@@ -55,65 +36,52 @@ class LLMFactory:
         )
         return response, TokenMetrics(total_tokens=completion.usage.total_tokens)
 
-    # ------------------------------------------
-    # DAY 8: TOOL-ENABLED CHAT
-    # ------------------------------------------
-    # DEFINITION:
-    # What: A method that sends a prompt + a list of available tools to the LLM.
-    # Why: We need to see if the LLM returns 'content' (talking) or 'tool_calls' (acting).
-    
     def chat_with_tools(self, messages, tools):
         """
-        Sends tools to the LLM and returns the raw response to check for tool_calls.
+        Refined method: Force System Prompt to prevent XML tag hallucination
+        and use tool_choice='auto' for deterministic tool routing.
         """
-        try:
-            response = self.raw_client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                tools=tools, # This is the Day 8 addition
-                tool_choice="auto",
-                temperature=0
-            )
-        except BadRequestError as exc:
-            # Some models occasionally emit malformed function-call text
-            # Retry once with an explicit instruction for strict tool-calling format
-            if "tool_use_failed" not in str(exc):
-                raise
+        system_instruction = {
+            "role": "system",
+            "content": "You are a helpful assistant. You have access to tools. If you use a tool, you must output a valid JSON tool call. Do not use custom XML tags like <function>."
+        }
 
-            retry_messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "When you need a tool, respond ONLY with a valid tool call. "
-                        "Never use XML-style tags like <function=...>. "
-                        "Arguments must be valid JSON that matches the tool schema."
-                    ),
-                },
-                *messages,
-            ]
+        # Combine system instruction with the provided message history
+        # We assume messages is a list of dicts. If it's a list, we prepend.
+        full_messages = [system_instruction] + messages
 
-            response = self.raw_client.chat.completions.create(
-                model=self.model_name,
-                messages=retry_messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0
-            )
-        return response.choices[0].message
+        response = self.raw_client.chat.completions.create(
+            model=self.model_name,
+            messages=full_messages,
+            tools=tools,
+            tool_choice="auto" 
+        )
+        return response
     
-    # ------------------------------------------
-    # DAY 15: RAG-BASED ANSWERING
-    # ------------------------------------------
     def get_embedding(self, text: str):
-        """
-        Converts a string into a list of 384 numbers (vector).
-        """
         start = time.time()
-        
-        # Use the local model to encode the text
         vector = self.embed_model.encode(text).tolist()
-        
         latency = (time.time() - start) * 1000
         print(f"📊 Embedding Latency: {latency:.2f}ms")
-        
         return vector
+
+# Global Schema Definition
+TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_database",
+            "description": "Searches the knowledge base for information on a specific topic.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query_string": {
+                        "type": "string",
+                        "description": "The search query."
+                    }
+                },
+                "required": ["query_string"]
+            }
+        }
+    }
+]
