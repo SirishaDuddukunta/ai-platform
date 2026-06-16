@@ -1,3 +1,6 @@
 .env 
 desktop.ini
 uv.lock
+qdrant_storage/
+__pycache__/
+.vscode/

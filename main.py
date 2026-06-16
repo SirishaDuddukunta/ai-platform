@@ -1,9 +1,8 @@
 # FastAPI Endpoints
-import os
-import json
-import time
-from fastapi import FastAPI, HTTPException, Request
+import os, json, time, uuid
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from dotenv import load_dotenv
+from src.core.memory import load_history, save_history
 
 # Core Platform Imports
 from src.core.factory import LLMFactory
@@ -161,64 +160,66 @@ SYSTEM_PROMPT = {
     )
 }
 
-# [Line 144] Initialize memory with the Senior AI Engineer persona
-session_history = [SYSTEM_PROMPT]
 @app.post("/chat")
-async def chat_with_memory(user_input: str):
-    # 1. Access the global memory
-    global session_history 
+async def chat_with_memory(user_input: str, user_id: str = "default_user"):
+    # 1. Load history
+    session_history = load_history(user_id)
+    if not session_history:
+        session_history = [{"role": "system", "content": f"You are AI-Eng-Core. The user is {user_id}."}]
     
-    # 2. Add user input
+    # 2. Append user input
     session_history.append({"role": "user", "content": user_input})
-
-    # 3. Get initial AI Response
-    response_message = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
     
-    # 4. Save the response object (Crucial for tool_calls history)
-    session_history.append(response_message)
-
-    # --- CASE A: AI WANTS TO USE TOOLS ---
-    if response_message.tool_calls:
-        for tool_call in response_message.tool_calls:
+    # 3. Get LLM Response
+    response = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
+    
+    # Extract message properly (Fixes AttributeError)
+    message = response.choices[0].message
+    
+    # 4. Handle Tool Calls
+    if message.tool_calls:
+        # Append the assistant's tool-calling message to history
+        # IMPORTANT: Use .model_dump() to make it JSON serializable
+        session_history.append(message.model_dump())
+        
+        for tool_call in message.tool_calls:
             f_name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
             
-            # (Tool execution logic - keep your existing if/else here)
             try:
+                # Execution logic
                 if f_name == "get_server_status":
-                    result = get_server_status(args["hostname"])
+                    result = get_server_status(args.get("hostname"))
                 elif f_name == "query_database":
-                    result = query_database(args["query_string"])
+                    result = query_database(args.get("query_string"))
                 else:
                     result = f"Error: Tool {f_name} not found."
             except Exception as e:
                 result = f"TOOL_ERROR: {str(e)}"
 
+            # Append tool result
             session_history.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "name": f_name,
-                "content": result
+                "content": str(result)
             })
 
-        # Final reasoning turn
+        # Final turn to get the summary
         final_turn = factory.chat_with_tools(session_history, TOOLS_SCHEMA)
-        final_answer = final_turn.content or "Analysis complete."
+        final_answer = final_turn.choices[0].message.content or "Analysis complete."
         session_history.append({"role": "assistant", "content": final_answer})
-        
-        # TRIM & RETURN
-        session_history = trim_history(session_history, max_messages=10)
-        return {"response": final_answer}
-
-    # --- CASE B: AI JUST WANTS TO TALK (The 'null' fix) ---
-    # This part was likely missing or not returning correctly!
-    direct_answer = response_message.content or "I am AI-Eng-Core. How can I assist with your architecture?"
     
-    # Final cleanup before leaving the function
-    session_history = trim_history(session_history, max_messages=10)
-    
-    return {"response": direct_answer}
+    else:
+        # Standard chat case
+        final_answer = message.content or "How can I help?"
+        session_history.append({"role": "assistant", "content": final_answer})
 
+    # 5. Save History (Fixes TypeError)
+    # We ensure session_history is a list of dictionaries, not raw objects
+    save_history(user_id, session_history)
+    
+    return {"response": final_answer}
 @app.post("/engineer/embed")
 async def api_generate_embedding(text: str):
     """
@@ -241,3 +242,73 @@ async def api_index_document(text: str, doc_id: str):
         return {"status": status, "message": "Knowledge acquired."}
     except Exception as e:
         return {"error": str(e)}
+# main.py
+from src.core.orchestrator import run_agent_task
+
+""" @app.post("/engineer/ask")
+async def ask_agent(query: str):    
+    Day 24 Integration Point: 
+    Sends a query from the API to the Orchestrator.
+    try:
+        # We call the function we just refactored
+        result = run_agent_task(query)
+        return {"status": "success", "answer": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)} """
+
+# --- MOCK STORAGE (Replace with Redis in production) ---
+task_store = {}
+
+@app.post("/engineer/ask")
+async def ask_agent_async(query: str, background_tasks: BackgroundTasks):
+    """
+    Day 25: Returns a task_id immediately and runs the agent in the background.
+    """
+    task_id = str(uuid.uuid4())
+    task_store[task_id] = {"status": "processing", "result": None}
+    
+    # Define the background worker
+    def process_agent_task(tid, q):
+        try:
+            # Import and call your orchestrator function
+            from src.core.orchestrator import run_agent_task
+            result = run_agent_task(q)
+            task_store[tid] = {"status": "completed", "result": result}
+        except Exception as e:
+            task_store[tid] = {"status": "failed", "error": str(e)}
+
+    # Add the worker to background tasks
+    background_tasks.add_task(process_agent_task, task_id, query)
+    
+    return {"status": "accepted", "task_id": task_id}
+
+@app.get("/engineer/status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Check the status of a long-running research task.
+    """
+    task = task_store.get(task_id)
+    if not task:
+        return {"status": "not_found"}
+    return task
+
+from src.core.vector_memory import init_qdrant, upsert_to_vector_db, search_memory
+# 1. Run at startup
+@app.on_event("startup")
+def startup_event():
+    init_qdrant()
+
+@app.post("/chat")
+async def chat_with_memory(user_input: str, user_id: str = "default_user"):
+    # ... (your existing load/get response logic) ...
+    
+    # After you get the response from your LLM:
+    # 1. Keep your working JSON save
+    save_history(user_id, session_history)
+    
+    # 2. SHADOW SAVE to Vector DB
+    # We save both the user input and the assistant response
+    upsert_to_vector_db(user_id, "user", user_input)
+    upsert_to_vector_db(user_id, "assistant", message.content)
+    
+    return {"response": message.content}

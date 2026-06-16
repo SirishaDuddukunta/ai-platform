@@ -1,0 +1,10 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_db
+    ports:
+      - "6333:6333"
+      - "6334:6334" # Added for gRPC support (faster for large RAG)
+    volumes:
+      - "./qdrant_storage:/qdrant/storage"
+    restart: always  # This makes it "permanent" (restarts if your PC reboots)
