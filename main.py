@@ -292,22 +292,23 @@ async def get_task_status(task_id: str):
         return {"status": "not_found"}
     return task
 
+from src.core.vector_memory import init_qdrant, upsert_to_vector_db, search_memory
+# 1. Run at startup
+@app.on_event("startup")
+def startup_event():
+    init_qdrant()
+
 @app.post("/chat")
 async def chat_with_memory(user_input: str, user_id: str = "default_user"):
-    # 1. Load specific history for this user
-    session_history = load_history(user_id)
+    # ... (your existing load/get response logic) ...
     
-    # 2. Check if this is a new session
-    if not session_history:
-        session_history = [
-            {"role": "system", "content": f"You are AI-Eng-Core. The user is {user_id}."}
-        ]
-        
-    session_history.append({"role": "user", "content": user_input})
-    
-    # ... (Your existing Tool logic here) ...
-    
-    # 3. Save to this user's specific file
+    # After you get the response from your LLM:
+    # 1. Keep your working JSON save
     save_history(user_id, session_history)
     
-    return {"response": final_answer}
+    # 2. SHADOW SAVE to Vector DB
+    # We save both the user input and the assistant response
+    upsert_to_vector_db(user_id, "user", user_input)
+    upsert_to_vector_db(user_id, "assistant", message.content)
+    
+    return {"response": message.content}

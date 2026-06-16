@@ -1,0 +1,30 @@
+[
+    {
+        "role": "system",
+        "content": "You are AI-Eng-Core. The user is default_user."
+    },
+    {
+        "role": "user",
+        "content": "Hi,my name is sirisa"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Sirisa, it's nice to meet you. Is there something I can help you with or would you like to chat?"
+    },
+    {
+        "role": "user",
+        "content": "what is my name"
+    },
+    {
+        "role": "assistant",
+        "content": "Your name is Sirisa."
+    },
+    {
+        "role": "user",
+        "content": "hi,my name is siri"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Siri, nice to meet you. I see you've changed your name from Sirisa to Siri. Is there something I can help you with or would you like to chat?"
+    }
+]
