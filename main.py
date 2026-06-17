@@ -300,15 +300,34 @@ def startup_event():
 
 @app.post("/chat")
 async def chat_with_memory(user_input: str, user_id: str = "default_user"):
-    # ... (your existing load/get response logic) ...
+    # 1. RETRIEVAL: Search for relevant context
+    # We ask Qdrant for the 3 most similar past messages
+    relevant_memories = search_memory(user_id, user_input, limit=3)
     
-    # After you get the response from your LLM:
-    # 1. Keep your working JSON save
-    save_history(user_id, session_history)
+    # Format them for the LLM
+    context_text = "\n".join(relevant_memories)
     
-    # 2. SHADOW SAVE to Vector DB
-    # We save both the user input and the assistant response
+    # 2. LOAD HISTORY: (Your existing JSON history)
+    session_history = load_history(user_id)
+    
+    # 3. AUGMENTATION: Inject context into system prompt
+    # We add a "Memory" instruction that the AI reads *before* the conversation history
+    memory_instruction = {
+        "role": "system", 
+        "content": f"Use the following retrieved memories to answer the user if relevant:\n{context_text}"
+    }
+    
+    # Construct the full prompt (Memory Instruction + History)
+    # We insert the memory instruction at the beginning
+    full_prompt = [memory_instruction] + session_history
+    
+    # 4. GENERATION: Pass to your factory
+    # Assuming factory.chat_with_tools returns a response object with a 'content' field
+    response = factory.chat_with_tools(full_prompt, TOOLS_SCHEMA) 
+    
+    # 5. STORAGE: Save both to JSON and Shadow-Save to Vector DB
+    save_history(user_id, session_history + [{"role": "user", "content": user_input}, {"role": "assistant", "content": response.content}])
     upsert_to_vector_db(user_id, "user", user_input)
-    upsert_to_vector_db(user_id, "assistant", message.content)
+    upsert_to_vector_db(user_id, "assistant", response.content)
     
-    return {"response": message.content}
+    return {"response": response.content}

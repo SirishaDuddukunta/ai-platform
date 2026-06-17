@@ -26,5 +26,21 @@
     {
         "role": "assistant",
         "content": "Hello Siri, nice to meet you. I see you've changed your name from Sirisa to Siri. Is there something I can help you with or would you like to chat?"
+    },
+    {
+        "role": "user",
+        "content": "My favorite color is Pink."
+    },
+    {
+        "role": "assistant",
+        "content": "That's a lovely choice, Siri. Pink is a beautiful and vibrant color. Is there something specific you'd like to talk about or ask regarding your favorite color, or would you like to explore other topics?"
+    },
+    {
+        "role": "user",
+        "content": "what is my fav color?"
+    },
+    {
+        "role": "assistant",
+        "content": "Your favorite color is Pink, Siri."
     }
 ]
