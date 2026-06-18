@@ -1,19 +1,34 @@
 import instructor
+import chromadb 
+import time
 from groq import Groq
 from src.core.metrics import TokenMetrics
+from sentence_transformers import SentenceTransformer
+
+__all__ = ["LLMFactory", "SentenceTransformer", "TOOLS_SCHEMA"]
 
 class LLMFactory:
     def __init__(self, provider="groq"):
+        self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
+        self.collection = self.chroma_client.get_or_create_collection(name="engineer_docs")
+        self.embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
         self.provider = provider
         self.client = instructor.from_groq(Groq())
-        self.raw_client = Groq() # Needed for tool calling/streaming
+        self.raw_client = Groq()
         self.model_name = "llama-3.3-70b-versatile"
 
-    # ------------------------------------------
-    # DAY 1-7: STRUCTURED & STREAMING LOGIC (KEEPING FOR HISTORY)
-    # ------------------------------------------
+    def add_to_library(self, text: str, doc_id: str, metadata: dict = None):
+        vector = self.get_embedding(text)
+        self.collection.add(
+            ids=[doc_id],
+            embeddings=[vector],
+            metadatas=[metadata or {}],
+            documents=[text]
+        )
+        return f"Successfully indexed doc: {doc_id}"
+
     def get_structured(self, response_model, user_prompt):
-        # [Old Day 7 Logic remains active here...]
         response, completion = self.client.chat.completions.create_with_completion(
             model=self.model_name,
             response_model=response_model,
@@ -21,21 +36,52 @@ class LLMFactory:
         )
         return response, TokenMetrics(total_tokens=completion.usage.total_tokens)
 
-    # ------------------------------------------
-    # DAY 8: TOOL-ENABLED CHAT
-    # ------------------------------------------
-    # DEFINITION:
-    # What: A method that sends a prompt + a list of available tools to the LLM.
-    # Why: We need to see if the LLM returns 'content' (talking) or 'tool_calls' (acting).
-    
     def chat_with_tools(self, messages, tools):
         """
-        Sends tools to the LLM and returns the raw response to check for tool_calls.
+        Refined method: Force System Prompt to prevent XML tag hallucination
+        and use tool_choice='auto' for deterministic tool routing.
         """
+        system_instruction = {
+            "role": "system",
+            "content": "You are a helpful assistant. You have access to tools. If you use a tool, you must output a valid JSON tool call. Do not use custom XML tags like <function>."
+        }
+
+        # Combine system instruction with the provided message history
+        # We assume messages is a list of dicts. If it's a list, we prepend.
+        full_messages = [system_instruction] + messages
+
         response = self.raw_client.chat.completions.create(
             model=self.model_name,
-            messages=messages,
-            tools=tools, # This is the Day 8 addition
+            messages=full_messages,
+            tools=tools,
             tool_choice="auto" 
         )
-        return response.choices[0].message
+        return response
+    
+    def get_embedding(self, text: str):
+        start = time.time()
+        vector = self.embed_model.encode(text).tolist()
+        latency = (time.time() - start) * 1000
+        print(f"📊 Embedding Latency: {latency:.2f}ms")
+        return vector
+
+# Global Schema Definition
+TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_database",
+            "description": "Searches the knowledge base for information on a specific topic.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query_string": {
+                        "type": "string",
+                        "description": "The search query."
+                    }
+                },
+                "required": ["query_string"]
+            }
+        }
+    }
+]
