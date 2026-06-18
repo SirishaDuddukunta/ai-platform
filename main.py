@@ -3,7 +3,7 @@ import os, json, time, uuid
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from dotenv import load_dotenv
 from src.core.memory import load_history, save_history
-
+from src.core.logger import log_trace
 # Core Platform Imports
 from src.core.factory import LLMFactory
 from src.core.processor import DocumentProcessor
@@ -298,34 +298,38 @@ from src.core.vector_memory import init_qdrant, upsert_to_vector_db, search_memo
 def startup_event():
     init_qdrant()
 
+from src.core.logger import log_trace # Ensure this is imported
+
 @app.post("/chat")
 async def chat_with_memory(user_input: str, user_id: str = "default_user"):
-    # 1. RETRIEVAL: Search for relevant context
-    # We ask Qdrant for the 3 most similar past messages
+    # 1. TRACE: User Request
+    log_trace("User Input", {"user": user_id, "input": user_input})
+
+    # 2. RETRIEVAL
     relevant_memories = search_memory(user_id, user_input, limit=3)
-    
-    # Format them for the LLM
     context_text = "\n".join(relevant_memories)
+    # TRACE: What context was retrieved?
+    log_trace("Memory Retrieval", {"found_count": len(relevant_memories), "context": context_text})
     
-    # 2. LOAD HISTORY: (Your existing JSON history)
     session_history = load_history(user_id)
     
-    # 3. AUGMENTATION: Inject context into system prompt
-    # We add a "Memory" instruction that the AI reads *before* the conversation history
     memory_instruction = {
         "role": "system", 
         "content": f"Use the following retrieved memories to answer the user if relevant:\n{context_text}"
     }
     
-    # Construct the full prompt (Memory Instruction + History)
-    # We insert the memory instruction at the beginning
     full_prompt = [memory_instruction] + session_history
     
-    # 4. GENERATION: Pass to your factory
-    # Assuming factory.chat_with_tools returns a response object with a 'content' field
+    # 3. GENERATION
+    # TRACE: What is being sent to the LLM?
+    log_trace("LLM Input", {"prompt_len": len(full_prompt)})
+    
     response = factory.chat_with_tools(full_prompt, TOOLS_SCHEMA) 
     
-    # 5. STORAGE: Save both to JSON and Shadow-Save to Vector DB
+    # TRACE: Output success
+    log_trace("LLM Output", {"response": response.content[:50] + "..."})
+    
+    # 4. STORAGE
     save_history(user_id, session_history + [{"role": "user", "content": user_input}, {"role": "assistant", "content": response.content}])
     upsert_to_vector_db(user_id, "user", user_input)
     upsert_to_vector_db(user_id, "assistant", response.content)
