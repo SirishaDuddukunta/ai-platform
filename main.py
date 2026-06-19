@@ -4,6 +4,8 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from dotenv import load_dotenv
 from src.core.memory import load_history, save_history
 from src.core.logger import log_trace
+from src.core.logger import log_trace
+log_trace("System", {"status": "Application is booting up..."})
 # Core Platform Imports
 from src.core.factory import LLMFactory
 from src.core.processor import DocumentProcessor

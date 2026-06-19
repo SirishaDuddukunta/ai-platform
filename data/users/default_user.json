@@ -42,5 +42,37 @@
     {
         "role": "assistant",
         "content": "Your favorite color is Pink, Siri."
+    },
+    {
+        "role": "user",
+        "content": "hi,today is 19-06-2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello again, Siri. Today's date is indeed June 19th, 2026. How's your day going so far?"
+    },
+    {
+        "role": "user",
+        "content": "hi,today is 19-06-2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Siri, today's date is June 19th, 2026. Is there something specific you'd like to do or talk about on this day?"
+    },
+    {
+        "role": "user",
+        "content": "hi,today is 19-06-2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello again, Siri. Yes, today's date is June 19th, 2026. How can I assist you today?"
+    },
+    {
+        "role": "user",
+        "content": "today date?"
+    },
+    {
+        "role": "assistant",
+        "content": "Today's date is June 19th, 2026."
     }
 ]

@@ -11,12 +11,16 @@ COLLECTION_NAME = "chat_memory"
 
 # 2. Initialization
 def init_qdrant():
-    """Ensure the collection exists."""
-    if not client.collection_exists(COLLECTION_NAME):
-        client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE),
-        )
+    try:
+        if not client.collection_exists(COLLECTION_NAME):
+            client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE),
+            )
+        print("✅ Qdrant initialized")
+    except Exception as e:
+        # This prevents the app from crashing at startup
+        print(f"⚠️ Qdrant could not be reached: {e}. Running in 'offline' mode.")
 
 # 3. Storage (Upsert)
 def upsert_to_vector_db(user_id: str, role: str, content: str):
