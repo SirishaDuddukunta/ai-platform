@@ -1,3 +1,10 @@
 2026-06-19 10:13:54.198 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
 2026-06-19 10:22:05.083 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
 2026-06-19 10:26:14.678 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-26 03:27:03.384 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-26 03:37:23.284 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-26 03:51:54.384 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-26 03:58:31.728 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-26 04:15:18.315 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-28 10:58:58.062 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-06-28 12:41:12.117 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
