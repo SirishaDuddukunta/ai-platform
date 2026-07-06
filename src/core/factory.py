@@ -56,6 +56,7 @@ class LLMFactory:
             tools=tools,
             tool_choice="auto" 
         )
+        print(f"DEBUG: LLM Response type: {type(response)}")
         return response
     
     def get_embedding(self, text: str):
