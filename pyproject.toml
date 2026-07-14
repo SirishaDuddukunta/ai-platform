@@ -33,4 +33,4 @@ build-backend = "uv_build"
 
 [tool.pyright]
 venvPath = "."
-venv = ".venv"
+venv = ".venv-win"
