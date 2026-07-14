@@ -10,9 +10,10 @@ from datetime import datetime
 def security_scanner(user_input: str):
     """Scans input for dangerous patterns like system command injection."""
     prohibited_keywords = ["rm -rf", "DROP TABLE", "format C:", "sudo", "shutdown"]
-    
+    lowered_input = user_input.lower()
+
     for word in prohibited_keywords:
-        if word.lower() in user_input.lower():
+        if word.lower() in lowered_input:
             return False, f"⚠️ Security Alert: Prohibited command pattern '{word}' detected."
     return True, "Passed"
 
@@ -55,7 +56,10 @@ def get_server_status(hostname: str):
 def restart_server(hostname: str):
     """Simulates a server restart command."""
     # Day 10 Observability Integration
-    return f"🚀 Restart command sent to {hostname}. Estimated downtime: 2 mins."
+    start_time = time.time()
+    result = f"🚀 Restart command sent to {hostname}. Estimated downtime: 2 mins."
+    log_tool_usage("restart_server", "success", time.time() - start_time)
+    return result
 
 # ==========================================
 # DAY 9: ERROR HANDLING & FLAKY TOOLS

@@ -1,13 +1,28 @@
 # src/core/vector_memory.py
+import os
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from sentence_transformers import SentenceTransformer
 import uuid
 
 # 1. Initialize Global Objects
-encoder = SentenceTransformer('all-MiniLM-L6-v2')
-client = QdrantClient(host="localhost", port=6333)
+_encoder = None
+client = QdrantClient(url=os.getenv("QDRANT_URL", "http://localhost:6333"))
 COLLECTION_NAME = "chat_memory"
+
+
+def set_encoder(model: SentenceTransformer):
+    """Allows the app to inject a shared embedder instead of loading a second copy."""
+    global _encoder
+    _encoder = model
+
+
+def get_encoder() -> SentenceTransformer:
+    global _encoder
+    if _encoder is None:
+        _encoder = SentenceTransformer("all-MiniLM-L6-v2")
+    return _encoder
+
 
 # 2. Initialization
 def init_qdrant():
@@ -22,12 +37,13 @@ def init_qdrant():
         # This prevents the app from crashing at startup
         print(f"⚠️ Qdrant could not be reached: {e}. Running in 'offline' mode.")
 
+
 # 3. Storage (Upsert)
 def upsert_to_vector_db(user_id: str, role: str, content: str):
     """Embeds and stores a single message turn."""
     point_id = str(uuid.uuid4())
-    vector = encoder.encode(content).tolist()
-    
+    vector = get_encoder().encode(content).tolist()
+
     client.upsert(
         collection_name=COLLECTION_NAME,
         points=[
@@ -39,19 +55,20 @@ def upsert_to_vector_db(user_id: str, role: str, content: str):
         ]
     )
 
+
 # 4. Retrieval (Search)
 def search_memory(user_id: str, query: str, limit: int = 3):
     """Finds top N most similar past interactions."""
-    query_vector = encoder.encode(query).tolist()
-    
-    results = client.search(
+    query_vector = get_encoder().encode(query).tolist()
+
+    results = client.query_points(
         collection_name=COLLECTION_NAME,
-        query_vector=query_vector,
+        query=query_vector,
         query_filter=models.Filter(
             must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id))]
         ),
         limit=limit
-    )
-    
+    ).points
+
     # Return just the text content of the matches
     return [hit.payload["text"] for hit in results]

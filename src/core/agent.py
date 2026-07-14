@@ -86,9 +86,19 @@ class NativeAgent:
             if "action" in response:
                 tool_name = response["action"]
                 tool_args = response.get("action_input", {})
-                
-                # Execute tool via registry
-                tool_result = TOOLS[tool_name](**tool_args)
-                
+
+                # Execute tool via registry. Self-correction: if the tool is unknown
+                # or raises, feed the error back as an observation instead of crashing.
+                try:
+                    if tool_name not in TOOLS:
+                        tool_result = f"Error: Tool '{tool_name}' not found."
+                    else:
+                        tool_result = TOOLS[tool_name](**tool_args)
+                except Exception as e:
+                    tool_result = f"TOOL_EXECUTION_ERROR: {str(e)}"
+
                 self.history.append({"role": "assistant", "content": json.dumps(response)})
                 self.history.append({"role": "user", "content": f"Observation: {tool_result}"})
+
+        # Loop exhausted without the model returning a final answer.
+        return {"status": "unknown", "message": "Agent did not converge within the step limit."}
