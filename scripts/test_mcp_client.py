@@ -1,5 +1,3 @@
-# scripts/test_mcp_client.py
-#
 # WHAT IS THIS FILE?
 # This is an MCP *client* — the opposite role from src/core/mcp_server.py.
 # A client's job is to launch a server, ask it "what tools do you have?",
