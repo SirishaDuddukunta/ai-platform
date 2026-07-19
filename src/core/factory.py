@@ -1,41 +1,103 @@
 import instructor
+import chromadb
+import sys
+import time
 from groq import Groq
 from src.core.metrics import TokenMetrics
+from sentence_transformers import SentenceTransformer
+
+__all__ = ["LLMFactory", "SentenceTransformer"]
 
 class LLMFactory:
-    def __init__(self, provider="groq"):
+    def __init__(self, provider="groq", embed_model: SentenceTransformer = None):
+        self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
+        self.collection = self.chroma_client.get_or_create_collection(name="engineer_docs")
+        # Allow callers to inject a shared model instance so it isn't loaded into memory twice.
+        self.embed_model = embed_model or SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
         self.provider = provider
         self.client = instructor.from_groq(Groq())
-        self.raw_client = Groq() # Needed for tool calling/streaming
+        self.raw_client = Groq()
         self.model_name = "llama-3.3-70b-versatile"
 
-    # ------------------------------------------
-    # DAY 1-7: STRUCTURED & STREAMING LOGIC (KEEPING FOR HISTORY)
-    # ------------------------------------------
-    def get_structured(self, response_model, user_prompt):
-        # [Old Day 7 Logic remains active here...]
-        response, completion = self.client.chat.completions.create_with_completion(
-            model=self.model_name,
-            response_model=response_model,
-            messages=[{"role": "user", "content": user_prompt}]
+    def add_to_library(self, text: str, doc_id: str, metadata: dict = None):
+        vector = self.get_embedding(text)
+        self.collection.add(
+            ids=[doc_id],
+            embeddings=[vector],
+            metadatas=[metadata or {}],
+            documents=[text]
         )
-        return response, TokenMetrics(total_tokens=completion.usage.total_tokens)
+        return f"Successfully indexed doc: {doc_id}"
 
-    # ------------------------------------------
-    # DAY 8: TOOL-ENABLED CHAT
-    # ------------------------------------------
-    # DEFINITION:
-    # What: A method that sends a prompt + a list of available tools to the LLM.
-    # Why: We need to see if the LLM returns 'content' (talking) or 'tool_calls' (acting).
-    
+    def search_library(self, query: str, n_results: int = 3):
+        # Turn the search text into the same kind of vector we used when we
+        # stored documents with add_to_library(). Two pieces of text can only
+        # be compared once they're both vectors in the same "embedding space".
+        query_vector = self.get_embedding(query)
+
+        # Ask Chroma for the n_results documents whose vectors are closest
+        # (most similar in meaning) to our query vector.
+        results = self.collection.query(
+            query_embeddings=[query_vector],
+            n_results=n_results
+        )
+
+        # Chroma returns parallel lists (one per query) nested inside dicts,
+        # e.g. results["documents"] == [["doc text 1", "doc text 2"]].
+        # We only ever send one query at a time, so we grab index [0].
+        matched_docs = results.get("documents", [[]])[0]
+        matched_ids = results.get("ids", [[]])[0]
+
+        # Zip pairs each doc up with its id so the caller gets both, not just
+        # raw text with no way to know which stored document it came from.
+        return [{"id": doc_id, "text": doc_text} for doc_id, doc_text in zip(matched_ids, matched_docs)]
+
+    def get_structured(self, response_model, user_prompt):
+        # Ask the LLM to answer AND force its answer into the shape of `response_model`
+        # (e.g. the Invoice schema). create_with_completion returns TWO things:
+        #   response   = the parsed Pydantic object (our invoice)
+        #   completion = the RAW API reply, which contains .usage (the token counts)
+        response, completion = self.client.chat.completions.create_with_completion(
+            model=self.model_name,                              # which LLM to use
+            response_model=response_model,                      # the Pydantic shape to enforce
+            messages=[{"role": "user", "content": user_prompt}] # the actual question
+        )
+        # OLD LINE (before): return response, TokenMetrics(total_tokens=completion.usage.total_tokens)
+        # NEW LINE: use our smart constructor — it reads ALL the token counts
+        # from completion.usage and computes cost_usd automatically.
+        return response, TokenMetrics.from_usage(completion.usage, provider=self.provider)
+
     def chat_with_tools(self, messages, tools):
         """
-        Sends tools to the LLM and returns the raw response to check for tool_calls.
+        Refined method: Force System Prompt to prevent XML tag hallucination
+        and use tool_choice='auto' for deterministic tool routing.
         """
+        system_instruction = {
+            "role": "system",
+            "content": "You are a helpful assistant. You have access to tools. If you use a tool, you must output a valid JSON tool call. Do not use custom XML tags like <function>."
+        }
+
+        # Combine system instruction with the provided message history
+        # We assume messages is a list of dicts. If it's a list, we prepend.
+        full_messages = [system_instruction] + messages
+
         response = self.raw_client.chat.completions.create(
             model=self.model_name,
-            messages=messages,
-            tools=tools, # This is the Day 8 addition
+            messages=full_messages,
+            tools=tools,
             tool_choice="auto" 
         )
-        return response.choices[0].message
+        # Debug logs must go to stderr, not stdout: this class is also used
+        # inside the MCP server (src/core/mcp_server.py), which uses stdout
+        # as its actual protocol channel to talk to the client. A stray
+        # print() to stdout there would corrupt every tool call.
+        print(f"DEBUG: LLM Response type: {type(response)}", file=sys.stderr)
+        return response
+
+    def get_embedding(self, text: str):
+        start = time.time()
+        vector = self.embed_model.encode(text).tolist()
+        latency = (time.time() - start) * 1000
+        print(f"📊 Embedding Latency: {latency:.2f}ms", file=sys.stderr)
+        return vector

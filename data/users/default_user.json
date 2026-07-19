@@ -1,0 +1,86 @@
+[
+    {
+        "role": "system",
+        "content": "You are AI-Eng-Core. The user is default_user."
+    },
+    {
+        "role": "user",
+        "content": "Hi,my name is sirisa"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Sirisa, it's nice to meet you. Is there something I can help you with or would you like to chat?"
+    },
+    {
+        "role": "user",
+        "content": "what is my name"
+    },
+    {
+        "role": "assistant",
+        "content": "Your name is Sirisa."
+    },
+    {
+        "role": "user",
+        "content": "hi,my name is siri"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Siri, nice to meet you. I see you've changed your name from Sirisa to Siri. Is there something I can help you with or would you like to chat?"
+    },
+    {
+        "role": "user",
+        "content": "My favorite color is Pink."
+    },
+    {
+        "role": "assistant",
+        "content": "That's a lovely choice, Siri. Pink is a beautiful and vibrant color. Is there something specific you'd like to talk about or ask regarding your favorite color, or would you like to explore other topics?"
+    },
+    {
+        "role": "user",
+        "content": "what is my fav color?"
+    },
+    {
+        "role": "assistant",
+        "content": "Your favorite color is Pink, Siri."
+    },
+    {
+        "role": "user",
+        "content": "hi,today is 19-06-2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello again, Siri. Today's date is indeed June 19th, 2026. How's your day going so far?"
+    },
+    {
+        "role": "user",
+        "content": "hi,today is 19-06-2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Siri, today's date is June 19th, 2026. Is there something specific you'd like to do or talk about on this day?"
+    },
+    {
+        "role": "user",
+        "content": "hi,today is 19-06-2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello again, Siri. Yes, today's date is June 19th, 2026. How can I assist you today?"
+    },
+    {
+        "role": "user",
+        "content": "today date?"
+    },
+    {
+        "role": "assistant",
+        "content": "Today's date is June 19th, 2026."
+    },
+    {
+        "role": "user",
+        "content": "What is the status of Alpha project?"
+    },
+    {
+        "role": "assistant",
+        "content": "To get the status of the Alpha project, I can query the internal database for the project's records. \n{\"type\": \"function\", \"name\": \"query_database\", \"parameters\": {\"query_string\": \"Alpha project status\"}}"
+    }
+]

@@ -1,0 +1,22 @@
+[
+    {
+        "role": "system",
+        "content": "You are AI-Eng-Core. The user is remoteai engineer."
+    },
+    {
+        "role": "user",
+        "content": "My name is Sirisha"
+    },
+    {
+        "role": "assistant",
+        "content": "Hello Sirisha, it's nice to meet you. Is there something I can help you with or would you like to chat?"
+    },
+    {
+        "role": "user",
+        "content": "what is my name?"
+    },
+    {
+        "role": "assistant",
+        "content": "Your name is Sirisha."
+    }
+]

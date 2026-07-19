@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "question": "What is the status of the 'Alpha' project?",
+    "ground_truth": "The Alpha project is currently in the 'Design' phase.",
+    "context_hint": "Project Alpha: Design phase, started Q1 2026."
+  },
+  {
+    "id": 2,
+    "question": "Who is the lead engineer for 'Project Beta'?",
+    "ground_truth": "The lead engineer for Project Beta is Siri.",
+    "context_hint": "Project Beta lead: Siri."
+  },
+  {
+    "id": 3,
+    "question": "What should I tell a client if they ask about project delays?",
+    "ground_truth": "You should apologize, explain that we are resolving the blocker, and provide a new ETA.",
+    "context_hint": "Company policy on delays: apologize, explain blockers, provide ETA."
+  }
+]

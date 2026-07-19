@@ -1,0 +1,14 @@
+[
+    {
+        "role": "system",
+        "content": "You are AI-Eng-Core. The user is test_user."
+    },
+    {
+        "role": "user",
+        "content": "Please call the query_database tool to search for invoices"
+    },
+    {
+        "role": "assistant",
+        "content": "{ \"type\": \"function\", \"name\": \"query_database\", \"parameters\": { \"query_string\": \"invoices\" } }"
+    }
+]
