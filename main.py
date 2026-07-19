@@ -6,10 +6,10 @@ import json          # parses the JSON string arguments the LLM sends back for a
 import sys            # used below to fix a Windows console encoding quirk
 import time           # used to measure how long things take (latency)
 import uuid           # generates unique IDs for background tasks
+from src.core.agent_graph import run_graph_agent  # new LangGraph agent
 from contextlib import asynccontextmanager  # lets us define startup/shutdown code for the app
 
-# On Windows, stdout defaults to the system codepage (cp1252), which can't
-# encode the emoji our print() calls use (e.g. vector_memory.py's "✅"/"⚠️").
+
 # Without this, those prints raise UnicodeEncodeError and crash app startup.
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -202,7 +202,7 @@ async def chat_with_memory(user_input: str, user_id: str = "default_user"):
     context_text = "\n".join(relevant_memories)  # turn the list of memories into one text block
     log_trace("Memory Retrieval", {"found_count": len(relevant_memories), "context": context_text})
 
-    # 2. Load session history
+    # 2. Load session history 
     session_history = await run_in_threadpool(load_history, user_id)  # load this user's full past conversation
     if not session_history:
         # First-ever message from this user: start a fresh conversation with a system message.
@@ -306,3 +306,13 @@ async def get_task_status(task_id: str):
     if not task:
         return {"status": "not_found"}  # no such task_id was ever created
     return task  # {"status": "processing"|"completed"|"failed", ...}
+
+@app.post("/agent/graph")  # creates a POST endpoint at http://localhost:8000/agent/graph
+async def api_graph_agent(query: str):  # `query` comes from the request
+    """Days 36-42: the LangGraph version of the ReAct agent."""
+    # run_graph_agent is BLOCKING (it waits on the LLM). run_in_threadpool moves it
+    # to a side thread so the server can keep handling other requests meanwhile.
+    result = await run_in_threadpool(run_graph_agent, query)
+    # Return the answer plus a label saying which engine produced it —
+    # handy when you demo raw vs. LangGraph side by side.
+    return {"answer": result, "engine": "langgraph"}

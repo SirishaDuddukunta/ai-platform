@@ -54,12 +54,19 @@ class LLMFactory:
         return [{"id": doc_id, "text": doc_text} for doc_id, doc_text in zip(matched_ids, matched_docs)]
 
     def get_structured(self, response_model, user_prompt):
+        # Ask the LLM to answer AND force its answer into the shape of `response_model`
+        # (e.g. the Invoice schema). create_with_completion returns TWO things:
+        #   response   = the parsed Pydantic object (our invoice)
+        #   completion = the RAW API reply, which contains .usage (the token counts)
         response, completion = self.client.chat.completions.create_with_completion(
-            model=self.model_name,
-            response_model=response_model,
-            messages=[{"role": "user", "content": user_prompt}]
+            model=self.model_name,                              # which LLM to use
+            response_model=response_model,                      # the Pydantic shape to enforce
+            messages=[{"role": "user", "content": user_prompt}] # the actual question
         )
-        return response, TokenMetrics(total_tokens=completion.usage.total_tokens)
+        # OLD LINE (before): return response, TokenMetrics(total_tokens=completion.usage.total_tokens)
+        # NEW LINE: use our smart constructor — it reads ALL the token counts
+        # from completion.usage and computes cost_usd automatically.
+        return response, TokenMetrics.from_usage(completion.usage, provider=self.provider)
 
     def chat_with_tools(self, messages, tools):
         """

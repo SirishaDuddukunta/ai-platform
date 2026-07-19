@@ -18,3 +18,13 @@
 2026-07-06 03:09:30.738 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
 2026-07-06 03:53:14.910 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
 2026-07-06 04:03:40.626 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-07-14 07:25:31.150 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-07-14 09:40:31.264 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-07-14 09:41:41.298 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-07-14 09:46:50.370 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-07-14 09:51:38.309 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
+2026-07-14 09:54:50.565 | INFO     | src.core.logger:log_trace:10 - Step: User Input | Data: {'user': 'test_user', 'input': 'Please call the query_database tool to search for invoices'}
+2026-07-14 09:54:51.739 | INFO     | src.core.logger:log_trace:10 - Step: Memory Retrieval | Data: {'found_count': 0, 'context': ''}
+2026-07-14 09:54:51.742 | INFO     | src.core.logger:log_trace:10 - Step: LLM Input | Data: {'prompt_len': 3}
+2026-07-14 09:54:52.085 | INFO     | src.core.logger:log_trace:10 - Step: LLM Output | Data: {'response': '{ "type": "function", "name": "query_database", "p...'}
+2026-07-14 10:04:15.694 | INFO     | src.core.logger:log_trace:10 - Step: System | Data: {'status': 'Application is booting up...'}
